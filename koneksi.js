@@ -3,11 +3,11 @@ var mysql = require('mysql');
 // Create a connection
 var conn = 
   mysql.createConnection({
-    host: "localhost", 
+    host: "sql6.freesqldatabase.com", 
     port: "3306",
-    user: "root", 
-    password: "",
-    database: "ecia"
+    user: "sql6497442", 
+    password: "msfajvSDQ2",
+    database: "sql6497442"
   });
 
 conn.connect(function(err, conn){
