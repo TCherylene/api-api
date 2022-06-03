@@ -45,7 +45,7 @@ exports.topUp = function(req,res){
     var token = req.headers.authorization;
     var data = parsetoken(token);
 
-    var saldo = req.body.saldo;
+    var saldo = req.body.jumlah;
 
     var idTopUp = req.params.id;
     var idPengirim = data.id_client;
@@ -230,34 +230,63 @@ exports.history = function(req, res){
         if (error) serverErrorResponse(error);
 
         var topup = []
-        rows.forEach(element => {
-            topup.push(element)
-        });
+        if (rows.length == 0){
+            topup = null;
+        }
+        if (rows.length >= 1){
+            rows.forEach(element => {
+                topup.push(element)
+            });
+        } else if (rows.length == 1){
+            topup = rows[0]
+        }
         
         conn.query(queryHistoryBayar, function(error, rows, fields){
             if(error) serverErrorResponse(error);
-        
-            var bayar = []
-            rows.forEach(element => {
-                bayar.push(element)
-            })
+    
+            if (rows.length == 0){
+                var bayar = null;
+            }
+            if (rows.length >= 1){
+                var bayar = []
+                rows.forEach(element => {
+                    bayar.push(element)
+                })
+            } else if (rows.length == 1){
+                var bayar = []
+                bayar = rows[0]
+            }
             
             conn.query(queryHistoryTransfer,function(error, rows, fields){
                 if(error) serverErrorResponse(error);
             
-                var transfer = []
-                rows.forEach(element =>{
-                    if(element.id_pengirim == idClient){
-                        element.nominal *= -1
-                    }
-                    transfer.push(element)
-                })
+                if (rows.length == 0){
+                    var transfer = null;
+                }
+                if (rows.length >= 1){
+                    var transfer = []
+                    rows.forEach(element =>{
+                        if(element.id_pengirim == idClient){
+                            element.nominal *= -1
+                        }
+                        transfer.push(element)
+                    })
+                } else if (rows.length == 1){
+                    var transfer = []
+                    transfer = rows[0]
+                }
 
-                res.status(200).json({
-                    "topup": topup,
-                    "bayar": bayar,
-                    "transfer": transfer 
-                })
+                if (transfer == null && bayar == null && topup == null){
+                    return successResponse("User belum pernah melakukan transaksi", res)
+                } else {
+                    return res.status(200).json({
+                        "status": 200,
+                        "topup": topup,
+                        "bayar": bayar,
+                        "transfer": transfer 
+                    })
+                }
+
             })
         })
         
