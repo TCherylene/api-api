@@ -16,7 +16,7 @@ var routes = require('./routes');
 routes(app);
 
 //daftarkan menu routes dari index
-app.use('/api', require('./middleware'));
+app.use('/', require('./middleware'));
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
