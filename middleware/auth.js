@@ -20,10 +20,6 @@ function userErrorResponse(message, res){
      return response.failed(message, res)
 }
 
-function successResponseNested(message, res){
-     
-}
-
 //controller untuk registrasi user
 exports.registrasi = function (req, res) {
      var post = {

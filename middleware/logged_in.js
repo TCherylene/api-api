@@ -176,33 +176,29 @@ exports.bayar = function(req, res){
     }
 
     // Query untuk ngecek nomor wallet
-    var queryWallet = "SELECT id_client, nomor_wallet FROM daftar_client WHERE id_client = ? AND nomor_wallet = ?"
+    var queryWallet = "SELECT id_client, nomor_wallet, saldo FROM daftar_client WHERE id_client = ? AND nomor_wallet = ?"
     var dataWallet = [id_user, dataPostman.nomor_wallet]
 
     var queryWallet = mysql.format(queryWallet, dataWallet);
 
     conn.query(queryWallet, function(error, rows, next){
         if (error) serverErrorResponse(error);
+        
+        // Saldo tidak cukup
+        if(rows[0].saldo < dataPostman.harga){
+            return userErrorResponse("Saldo anda tidak mencukupi", res)
+        }
+        
         // nomor wallet salah
         if (rows.length == 0){
             return userErrorResponse("Nomor wallet salah", res)
         } 
 
-        // nomor wallet benar
-        else { 
-            // Cari id_client & saldo pengirim
-            conn.query("SELECT id_client, saldo FROM daftar_client WHERE id_client = ?", [id_user], function(error, rows, fields){
-                // Duit ga cukup
-                if(rows[0].saldo < dataPostman.harga){
-                    return userErrorResponse("Saldo tidak cukup", res)
-                }
-                
-                // Duitnya cukup
-                updateSaldo(id_user, (-1) * dataPostman.harga)
-                insertHistory("bayar", dataPostman.nomor_wallet, id_user, 0, dataPostman.harga)
-                return successResponse("Pembayaran berhasil", res)
-             })
-        }
+        // Nomor wallet benar
+        // Duitnya cukup
+        updateSaldo(id_user, (-1) * dataPostman.harga)
+        insertHistory("bayar", dataPostman.nomor_wallet, id_user, 0, dataPostman.harga)
+        return successResponse("Pembayaran berhasil", res)
     })
 }
 
@@ -213,13 +209,13 @@ exports.history = function(req, res){
 
     var idClient = dataToken.id_client
 
-    var queryHistoryTopUp = "SELECT id_history, nomor_wallet, id_pengirim, id_penerima, tanggal, waktu, nominal FROM history WHERE (id_pengirim = ? OR id_penerima = ?) AND jenis_transaksi = 'topup'"
+    var queryHistoryTopUp = "SELECT id_history, nomor_wallet, id_pengirim, id_penerima, waktu, nominal FROM history WHERE (id_pengirim = ? OR id_penerima = ?) AND jenis_transaksi = 'topup'"
     var tableHistoryTopUp = [idClient, idClient]
     
-    var queryHistoryBayar = "SELECT id_history, nomor_wallet, tanggal, waktu, nominal FROM history WHERE (id_pengirim = ? OR id_penerima = ?) AND jenis_transaksi = 'bayar'"
-    var tableHistoryBayar = [idClient, idClient]
+    var queryHistoryBayar = "SELECT id_history, nomor_wallet, waktu, nominal FROM history WHERE (id_pengirim = ?) AND jenis_transaksi = 'bayar'"
+    var tableHistoryBayar = [idClient]
 
-    var queryHistoryTransfer = "SELECT id_history, nomor_wallet, id_pengirim, id_penerima, tanggal, waktu, nominal FROM history WHERE (id_pengirim = ? OR id_penerima = ?) AND jenis_transaksi = 'transfer'"
+    var queryHistoryTransfer = "SELECT id_history, nomor_wallet, id_pengirim, id_penerima, waktu, nominal FROM history WHERE (id_pengirim = ? OR id_penerima = ?) AND jenis_transaksi = 'transfer'"
     var tableHistoryTransfer = [idClient, idClient] 
     
     var queryHistoryTopUp = mysql.format(queryHistoryTopUp, tableHistoryTopUp)
