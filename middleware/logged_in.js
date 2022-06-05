@@ -169,6 +169,11 @@ exports.bayar = function(req, res){
     // wallet: memilih e wallet yang mana
     // nomor wallet: dari get profile
     
+    // Harga nya <= 0
+    if(dataPostman.harga <= 0){
+        return userErrorResponse("Harga harus lebih dari 0", res)
+    }
+
     // Barang & harga nya kosong
     if(dataPostman.nama_barang == null || dataPostman.harga == null){
         return userErrorResponse("Nama_barang dan harga tidak boleh kosong", res)
