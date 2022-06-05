@@ -154,6 +154,10 @@ exports.bayar = function(req, res){
         id_user = dataToken.id_client;
     }
 
+    if(id_user != dataToken.id_client || dataToken.role != 1){
+        return userErrorResponse("Anda tidak dapat mengakses halaman ini")
+    }
+
     var dataPostman = {
         id_user: id_user,
         nama_barang: req.body.nama_barang,
