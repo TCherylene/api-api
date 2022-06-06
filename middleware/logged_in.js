@@ -6,6 +6,7 @@ const conn = require('../koneksi');
 var mysql = require('mysql');
 var updateSaldo = require('./update_saldo');
 var insertHistory = require('./insertHistory');
+var insertPembayaran = require('./insertPembayaran');
 
 function serverErrorResponse(error) {
     throw error;
@@ -24,12 +25,12 @@ exports.tampilSaldo = function (req, res){
     var token = req.headers.authorization;
     var data = parsetoken(token)
 
-    conn.query('SELECT * FROM daftar_client WHERE id_client = ?', [data.id_client], function(error, rows, fields){
+    conn.query('SELECT * FROM daftar_client WHERE id_user = ?', [data.id_user], function(error, rows, fields){
         if(error){
             return serverErrorResponse(error);
         } else {
-            res.json({
-                id_user: rows[0].id_client,
+            return res.status(200).json({
+                id_user: rows[0].id_user,
                 name: rows[0].nama_client,
                 pass: rows[0].password,
                 email: rows[0].email,
@@ -47,18 +48,18 @@ exports.topUp = function(req,res){
 
     var saldo = req.body.jumlah;
 
-    var idTopUp = req.params.id;
-    var idPengirim = data.id_client;
+    var idTopUp = req.params.id_user;
+    var idPengirim = data.id_user;
 
     // Diri sendiri / admin yang top up
-    if (idTopUp == data.id_client || data.role == 1){
+    if (idTopUp == data.id_user || data.role == 1){
         // Mencegah user top up negatif (tetapi bisa untuk admin)
         if(saldo <= 0 && data.role == 0){
             return userErrorResponse("Saldo top up harus lebih dari 0", res)
         }
         
         // User tidak ada
-        conn.query("SELECT * FROM daftar_client WHERE id_client = ?", [idTopUp], function(error, rows, fields){
+        conn.query("SELECT * FROM daftar_client WHERE id_user = ?", [idTopUp], function(error, rows, fields){
             if (error) return serverErrorResponse(error);
     
             if(rows.length == 0){
@@ -97,7 +98,7 @@ exports.transfer = function(req, res){
     }
 
     // Query untuk mencari receiver
-    var selectReceiver = ("SELECT id_client, email FROM daftar_client WHERE email = ?");
+    var selectReceiver = ("SELECT id_user, email FROM daftar_client WHERE email = ?");
     var dataSelectReceiver = [dataPostman.email];
     
     selectReceiver = mysql.format(selectReceiver, dataSelectReceiver);
@@ -111,11 +112,11 @@ exports.transfer = function(req, res){
             return userErrorResponse("Penerima tidak ditemukan", res)
         }
 
-        var idPengirim = dataToken.id_client;
-        var idPenerima = result[0].id_client;
+        var idPengirim = dataToken.id_user;
+        var idPenerima = result[0].id_user;
 
-        // Cari id_client & saldo pengirim
-        conn.query("SELECT id_client, saldo FROM daftar_client WHERE id_client = ?", [idPengirim], function(error, rows, fields){
+        // Cari id_user & saldo pengirim
+        conn.query("SELECT id_user, saldo FROM daftar_client WHERE id_user = ?", [idPengirim], function(error, rows, fields){
             if (error) return serverErrorResponse(error);
             
             // Penerimanya diri sendiri
@@ -147,14 +148,14 @@ exports.bayar = function(req, res){
     var token = req.headers.authorization;
     var dataToken = parsetoken(token);
 
-    var id_user = req.body.id_user
+    var id_user = req.body.id_user;
 
-    // Ambil id user
-    if (req.body.id_user == null){
-        id_user = dataToken.id_client;
+    // id_user kosong
+    if(id_user == null){
+        return userErrorResponse("Masukkan id_user", res)
     }
 
-    if(id_user != dataToken.id_client || dataToken.role != 1){
+    if(id_user != dataToken.id_user || dataToken.role != 1){
         return userErrorResponse("Anda tidak dapat mengakses halaman ini")
     }
 
@@ -165,7 +166,6 @@ exports.bayar = function(req, res){
         wallet: req.body.wallet,
         nomor_wallet: req.body.nomor_wallet
     };
-    // nama_barang -> layanan
     // wallet: memilih e wallet yang mana
     // nomor wallet: dari get profile
     
@@ -176,7 +176,7 @@ exports.bayar = function(req, res){
 
     // Barang & harga nya kosong
     if(dataPostman.nama_barang == null || dataPostman.harga == null){
-        return userErrorResponse("Nama_barang dan harga tidak boleh kosong", res)
+        return userErrorResponse("Masukkan nama_barang dan harga", res)
     }
 
     // Ngecek Nomor Wallet (kalau tidak ada nomor wallet)
@@ -185,18 +185,13 @@ exports.bayar = function(req, res){
     }
 
     // Query untuk ngecek nomor wallet
-    var queryWallet = "SELECT id_client, nomor_wallet, saldo FROM daftar_client WHERE id_client = ? AND nomor_wallet = ?"
+    var queryWallet = "SELECT id_user, nomor_wallet, saldo FROM daftar_client WHERE id_user = ? AND nomor_wallet = ?"
     var dataWallet = [id_user, dataPostman.nomor_wallet]
 
     var queryWallet = mysql.format(queryWallet, dataWallet);
 
     conn.query(queryWallet, function(error, rows, next){
         if (error) serverErrorResponse(error);
-        
-        // Saldo tidak cukup
-        if(rows[0].saldo < dataPostman.harga){
-            return userErrorResponse("Saldo anda tidak mencukupi", res)
-        }
         
         // nomor wallet salah
         if (rows.length == 0){
@@ -205,9 +200,31 @@ exports.bayar = function(req, res){
 
         // Nomor wallet benar
         // Duitnya cukup
-        updateSaldo(id_user, (-1) * dataPostman.harga)
-        insertHistory("bayar", dataPostman.nomor_wallet, id_user, 0, dataPostman.harga)
-        return successResponse("Pembayaran berhasil", res)
+        // insertHistory("bayar", dataPostman.nomor_wallet, id_user, 0, dataPostman.harga)
+        conn.query("SELECT id_pembelian FROM pembayaran", function(error, rows, fields){
+            if (error) return serverErrorResponse(error);
+            if (rows.length == 0){
+                var nomorReferensi = 1;
+            } else {
+                var nomorReferensi = rows[rows.length - 1].id_pembelian + 1;
+            }
+            insertPembayaran(dataPostman.nama_barang, dataPostman.id_user, dataPostman.harga, dataPostman.nomor_wallet, nomorReferensi)
+
+            var queryPembayaran = "SELECT * FROM pembayaran WHERE id_user = ?"
+            var tablePembayaran = [dataPostman.id_user]
+
+            queryPembayaran = mysql.format(queryPembayaran, tablePembayaran);
+
+            conn.query(queryPembayaran, function(error, rows, fields){
+                if(error) return serverErrorResponse(error);
+
+                return res.status(200).json({
+                    "status": 200,
+                    "id_pemesanan": rows[0].id_pembelian,
+                    "message": "Pembelian berhasil, silahkan lanjutkan pembayaran dengan mengkonfirmasi pembayaran pada ewallet Anda"
+                })
+            })
+        })
     })
 }
 
@@ -216,7 +233,7 @@ exports.history = function(req, res){
     var token = req.headers.authorization;
     var dataToken = parsetoken(token);
 
-    var idClient = dataToken.id_client
+    var idClient = dataToken.id_user
 
     var queryHistoryTopUp = "SELECT id_history, nomor_wallet, id_pengirim, id_penerima, waktu, nominal FROM history WHERE (id_pengirim = ? OR id_penerima = ?) AND jenis_transaksi = 'topup'"
     var tableHistoryTopUp = [idClient, idClient]
@@ -294,7 +311,129 @@ exports.history = function(req, res){
 
             })
         })
-        
     })
+}
 
+exports.cekPembayaran = function(req, res){
+    var token = req.headers.authorization;
+    var dataToken = parsetoken(token);
+
+    var idUser = req.params.id_user;
+
+    // Bukan diri sendiri atau admin
+    if (dataToken.id_user != idUser || dataToken.role != 1){
+        return userErrorResponse("Anda tidak dapat mengakses halaman ini", res)
+    }
+    
+    var queryPembayaran = "SELECT id_user, id_pembelian, nama_barang, status FROM pembayaran WHERE id_user = ?"
+    var tablePembayaran = [idUser]
+
+    queryPembayaran = mysql.format(queryPembayaran, tablePembayaran);
+
+    conn.query(queryPembayaran, function(error, rows, fields){
+        if(error) return serverErrorResponse(error);
+
+        if (rows.length == 0){
+            var data = null
+        } else {
+            var data = []
+            rows.forEach(element => {
+                data.push(element)
+            })
+        }
+
+        return res.status(200).json({
+            "status": 200,
+            "data": data
+        })
+    })
+}
+
+exports.cekIDPembayaran = function(req, res){
+    var token = req.headers.authorization;
+    var dataToken = parsetoken(token);
+
+    var idUser = req.params.id_user;
+    var idPembelian = req.params.id_pembelian;
+
+    // Bukan diri sendiri atau admin
+    if (dataToken.id_user != idUser || dataToken.role != 1){
+        return userErrorResponse("Anda tidak dapat mengakses halaman ini", res)
+    }
+    
+    var queryPembayaran = "SELECT id_user, id_pembelian, nama_barang, harga, wallet, nomor_wallet, status FROM pembayaran WHERE id_user = ? AND id_pembelian = ?"
+    var tablePembayaran = [idUser, idPembelian]
+
+    queryPembayaran = mysql.format(queryPembayaran, tablePembayaran);
+
+    conn.query(queryPembayaran, function(error, rows, fields){
+        if(error) return serverErrorResponse(error);
+
+        if (rows.length == 0){
+            var data = null
+        } else {
+            var data = []
+            rows.forEach(element => {
+                data.push(element)
+            })
+        }
+        
+        return res.status(200).json({
+            "status": 200,
+            "data": data
+        })
+    })
+}
+
+exports.transaksi = function(req, res){
+    var dataPostman = {
+        jumlah: req.body.jumlah,
+        nomor_wallet_client: req.body.nomor_wallet_client,
+        nomor_wallet_ecommerce: req.body.nomor_wallet_ecommerce,
+        referensi: req.body.referensi
+    }
+
+    // Query untuk ngecek nomor wallet dan referensi
+    var queryWallet = "SELECT * FROM pembayaran WHERE nomor_wallet = ? AND referensi = ?"
+    var dataWallet = [dataPostman.nomor_wallet_client, dataPostman.referensi]
+
+    var queryWallet = mysql.format(queryWallet, dataWallet);
+
+    conn.query(queryWallet, function(error, rows, next){
+        if (error) serverErrorResponse(error);
+        
+        // Nomor wallet salah
+        if (rows.length == 0){
+            return userErrorResponse("Nomor wallet atau nomor referensi tidak ditemukan", res)
+        } 
+
+        // Cek Saldo user
+        var queryCekSaldo = "SELECT id_user, nomor_wallet, saldo FROM daftar_client WHERE nomor_wallet = ?"
+        var tableCekSaldo = [dataPostman.nomor_wallet_client]
+
+        queryCekSaldo = mysql.format(queryCekSaldo, tableCekSaldo);
+
+        conn.query(queryCekSaldo, function(error, result, fields){
+            // Duitnya tidak cukup
+            if(rows[0].saldo < dataPostman.jumlah){
+                return userErrorResponse("Saldo anda tidak cukup", res)
+            }
+            
+            // Duitnya cukup
+            insertHistory('bayar', dataPostman.nomor_wallet_client, result[0].id_user, 0, dataPostman.jumlah)
+            updateSaldo(result[0].id_user, (dataPostman.jumlah * (-1)))
+            
+            // Update message pembayaran berhasil
+            var queryPembayaran = "UPDATE pembayaran SET status = 'PembayaranBerhasil' WHERE nomor_wallet = ? AND referensi = ?"
+            var tablePembayaran = [dataPostman.nomor_wallet_client, dataPostman.referensi]
+
+            queryPembayaran = mysql.format(queryPembayaran, tablePembayaran);
+
+            conn.query(queryPembayaran, function(error, rows, fields){
+                if(error) return serverErrorResponse(error);
+
+                return successResponse("Permintaan pembayaran berhasil", res)
+            })
+        })
+    })
 }

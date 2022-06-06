@@ -47,9 +47,9 @@ exports.registrasi = function (req, res) {
           return userErrorResponse("Email, pass dan name tidak boleh kosong", res)
      }
 
-     var cariJumlahClient = "SELECT id_client FROM daftar_client"
+     var cariJumlahClient = "SELECT id_user FROM daftar_client"
      conn.query(cariJumlahClient, function(error, rows){
-          var idTerakhir = rows[rows.length - 1].id_client
+          var idTerakhir = rows[rows.length - 1].id_user
 
           var nomor_wallet = md5(config.secretKeyMoney + config.secretKey + idTerakhir.toString(16))
      
@@ -87,7 +87,7 @@ exports.login = function (req, res) {
           return userErrorResponse("Email dan pass tidak boleh kosong", res)
      }
 
-     var query = "SELECT id_client, nama_client, email, password, nomor_wallet, role FROM daftar_client WHERE email=? AND password=?";
+     var query = "SELECT id_user, nama_client, email, password, nomor_wallet, role FROM daftar_client WHERE email=? AND password=?";
      var table = [post.email, post.password];
 
      query = mysql.format(query, table);
