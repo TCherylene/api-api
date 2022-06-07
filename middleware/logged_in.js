@@ -141,17 +141,19 @@ exports.bayar = function(req, res){
     
                 insertPembayaran(dataPostman.nama_barang, dataPostman.id_user, dataPostman.harga, dataPostman.nomor_wallet, nomorReferensi)
     
-                var queryPembayaran = "SELECT * FROM pembayaran WHERE id_user = ?"
-                var tablePembayaran = [dataPostman.id_user]
+                var queryPembayaran = "SELECT * FROM pembayaran WHERE id_user = ? AND nama_barang = ?"
+                var tablePembayaran = [dataPostman.id_user, dataPostman.nama_barang]
     
                 queryPembayaran = mysql.format(queryPembayaran, tablePembayaran);
     
                 conn.query(queryPembayaran, function(error, rows, fields){
                     if(error) return serverErrorResponse(error);
+
+                    console.log(rows[rows.length - 1].id_pembelian)
     
                     return res.status(200).json({
                         "status": 200,
-                        "id_pemesanan": rows[0].id_pembelian,
+                        "id_pemesanan": rows[rows.length - 1].id_pembelian,
                         "message": "Pembelian berhasil, silahkan lanjutkan pembayaran dengan mengkonfirmasi pembayaran pada ewallet Anda"
                     })
                 })
