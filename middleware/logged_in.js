@@ -262,7 +262,7 @@ exports.transaksi = function(req, res){
             return userErrorResponse("Nomor wallet atau nomor referensi tidak ditemukan", res)
         } 
 
-        if (rows[0].status = 'MenungguPembayaran'){
+        if (rows[0].status == "PembayaranBerhasil"){
             return userErrorResponse("Pembayaran sudah selesai", res);
         }
 
