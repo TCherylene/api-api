@@ -262,9 +262,9 @@ exports.transaksi = function(req, res){
             return userErrorResponse("Nomor wallet atau nomor referensi tidak ditemukan", res)
         } 
 
-        // if (rows[0].status = 'MenungguPembayaran'){
-        //     return userErrorResponse("Pembayaran sudah selesai", res);
-        // }
+        if (rows[0].status = 'MenungguPembayaran'){
+            return userErrorResponse("Pembayaran sudah selesai", res);
+        }
 
         // Cek Saldo user
         var queryCekSaldo = "SELECT id_user, nomor_wallet, saldo FROM daftar_client WHERE nomor_wallet = ?"
@@ -276,23 +276,24 @@ exports.transaksi = function(req, res){
             // Duitnya tidak cukup
             if(rows[0].saldo < dataPostman.jumlah){
                 return userErrorResponse("Saldo anda tidak cukup", res)
+            } else {
+                // Duitnya cukup
+                insertHistory('bayar', dataPostman.nomor_wallet_client, result[0].id_user, 0, dataPostman.jumlah)
+                updateSaldo(result[0].id_user, (dataPostman.jumlah * (-1)))
+                
+                // Update message pembayaran berhasil
+                var queryPembayaran = "UPDATE pembayaran SET status = 'PembayaranBerhasil' WHERE nomor_wallet = ? AND referensi = ?"
+                var tablePembayaran = [dataPostman.nomor_wallet_client, dataPostman.referensi]
+    
+                queryPembayaran = mysql.format(queryPembayaran, tablePembayaran);
+    
+                conn.query(queryPembayaran, function(error, rows, fields){
+                    if(error) return serverErrorResponse(error);
+    
+                    return successResponse("Permintaan pembayaran berhasil", res)
+                })
             }
             
-            // Duitnya cukup
-            insertHistory('bayar', dataPostman.nomor_wallet_client, result[0].id_user, 0, dataPostman.jumlah)
-            updateSaldo(result[0].id_user, (dataPostman.jumlah * (-1)))
-            
-            // Update message pembayaran berhasil
-            var queryPembayaran = "UPDATE pembayaran SET status = 'PembayaranBerhasil' WHERE nomor_wallet = ? AND referensi = ?"
-            var tablePembayaran = [dataPostman.nomor_wallet_client, dataPostman.referensi]
-
-            queryPembayaran = mysql.format(queryPembayaran, tablePembayaran);
-
-            conn.query(queryPembayaran, function(error, rows, fields){
-                if(error) return serverErrorResponse(error);
-
-                return successResponse("Permintaan pembayaran berhasil", res)
-            })
         })
     })
 }
