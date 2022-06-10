@@ -298,7 +298,7 @@ exports.transaksi = function(req, res){
     })
 }
 
-// TRANSFER - penerima, jumlah
+// TRANSFER - penerima, jumah
 exports.transfer = function(req, res){
     var token = req.headers.authorization;
     var dataToken = parsetoken(token);
