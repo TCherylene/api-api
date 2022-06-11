@@ -7,7 +7,7 @@ var conn =
     port: "3306",
     user: "sql6498933", 
     password: "6tIXSJsPIZ",
-    database: "	sql6498933"
+    database: "sql6498933"
   });
 
 conn.connect(function(err, conn){
